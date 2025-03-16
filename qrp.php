@@ -468,7 +468,188 @@ input[type="submit"]:hover {
     </div>
 </div>
 <script>
-// JavaScript for dynamic functionality like form submission, update UI, etc.
+<script>
+const measurement_types = {
+    1: 'Pokrycie lakierem górnej części pobocznicy - CuSO4', 
+    2: 'Pokrycie denka roztwór - CuSO4', 
+    3: 'Ilość oleju na przewężeniu (talk kosmetyczny)', 
+    4: 'Pokrycie kołnierza lakierem - CuSO4', 
+    5: 'Pokrycie denka roztwór - CuSO4, Pokrycie kołnierza lakierem - CuSO4, Ilość oleju na przewężeniu (talk kosmetyczny)'
+};
+
+function clearForm() {
+    document.getElementById('line').value = '';
+    document.getElementById('type').value = '';
+    document.getElementById('description').value = '';
+    document.getElementById('orderNumber').style.display = 'none';
+    document.getElementById('orderDisplay').innerText = '';
+    document.getElementById('testTypeNumber').style.display = 'none';
+    document.getElementById('testTypeDisplay').innerText = '';
+}
+
+function handleLineChange(event) {
+    const line = event.target.value;
+    if (line) {
+        fetch(`get_qrp_order.php?line=${line}`).then(response => {
+            if (!response.ok) throw new Error('Błąd w komunikacji z serwerem.');
+            return response.json();
+        }).then(data => {
+            if (data.success) {
+                document.getElementById('orderDisplay').innerText = data.orderNumber;
+                document.getElementById('orderNumber').style.display = 'block';
+            } else {
+                throw new Error('Nie udało się pobrać numeru zlecenia.');
+            }
+        }).catch(error => {
+            console.error('Błąd:', error.message);
+            document.getElementById('orderNumber').style.display = 'none';
+        });
+    } else {
+        document.getElementById('orderNumber').style.display = 'none';
+    }
+}
+
+function handleRegisterClick() {
+    const line = document.getElementById('line').value;
+    const description = document.getElementById('description').value.trim();
+    const type = document.getElementById('type').value;
+    if (!line) {
+        alert('Proszę wybrać linię!');
+        return;
+    }
+    if (!type) {
+        alert('Proszę wybrać typ testu!');
+        return;
+    }
+    const formData = new FormData();
+    formData.append('line', line);
+    formData.append('description', description);
+    formData.append('type', type);
+    fetch('qrp_fetch.php', {
+        method: 'POST', 
+        body: formData,
+    }).then(response => {
+        if (!response.ok) throw new Error('Błąd podczas zapisu danych.');
+        return response.json();
+    }).then(data => {
+        if (data.success) {
+            alert('Dane zapisane pomyślnie!');
+            getLastRecord();
+            clearForm();
+        } else {
+            throw new Error(data.message || 'Nieoczekiwany błąd serwera.');
+        }
+    }).catch(error => {
+        console.error('Błąd:', error.message);
+        alert('Błąd: ' + error.message);
+    });
+}
+
+function getLastRecord() {
+    fetch('get_last_record.php').then(response => {
+        if (!response.ok) throw new Error('Błąd w komunikacji z serwerem.');
+        return response.json();
+    }).then(data => {
+        if (data.success) {
+            updateLastRecordUI(data);
+        } else {
+            throw new Error('Nie udało się pobrać ostatniego zapisu.');
+        }
+    }).catch(error => {
+        console.error('Błąd:', error.message);
+        clearLastRecordUI();
+    });
+}
+
+function updateLastRecordUI(data) {
+    document.getElementById('lastImage').src = data.filePath || '#';
+    document.getElementById('lastImage').alt = data.filePath ? 'Ostatnie zdjęcie' : 'Brak zdjęcia';
+    document.getElementById('lastLine').innerText = data.line || 'Brak linii';
+    document.getElementById('lastOrder').innerText = data.orderNumber || 'Brak numeru zlecenia';
+    const testTypeNumber = parseInt(data.type, 10);
+    let testTypeName = measurement_types[testTypeNumber] || 'Brak rodzaju testu';
+    if (testTypeName.includes(',')) {
+        testTypeName = testTypeName.replace(/,/g, '<br>');
+    }
+    document.getElementById('lastTestType').innerHTML = testTypeName;
+    document.getElementById('lastDescription').innerText = data.description || 'Brak komentarza';
+    document.getElementById('lastDate').innerText = data.entryDate || 'Brak daty';
+    document.getElementById('lastUser').innerText = data.userName || 'Brak użytkownika';
+}
+
+function clearLastRecordUI() {
+    document.getElementById('lastImage').src = '#';
+    document.getElementById('lastImage').alt = 'Brak zdjęcia';
+    document.getElementById('lastLine').innerText = 'Brak linii';
+    document.getElementById('lastOrder').innerText = 'Brak numeru zlecenia';
+    document.getElementById('lastTestType').innerText = 'Brak rodzaju testu';
+    document.getElementById('lastDate').innerText = 'Brak daty';
+    document.getElementById('lastDescription').innerText = 'Brak komentarza';
+    document.getElementById('lastUser').innerText = 'Brak użytkownika';
+}
+
+document.getElementById('line').addEventListener('change', handleLineChange);
+document.getElementById('registerButton').addEventListener('click', handleRegisterClick);
+getLastRecord();
+
+function toggleMenu() {
+    const menu = document.getElementById('user-menu');
+    menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+}
+
+const userName = "<?php echo htmlspecialchars($user_name); ?>";
+const initials = userName.split(' ').map(word => word.charAt(0).toUpperCase()).join('');
+document.getElementById('user-initial').innerText = initials;
+
+const userIp = "<?php echo $user_ip; ?>";
+const targetIp = "10.11.x.x";
+if (userIp === targetIp) {
+    let inactivityTimeout;
+    const inactivityLimit = 5 * 60 * 1000;
+    function autoLogout() {
+        window.location.href = 'logout.php';
+    }
+    function resetInactivityTimer() {
+        clearTimeout(inactivityTimeout);
+        inactivityTimeout = setTimeout(autoLogout, inactivityLimit);
+    }
+    window.onload = resetInactivityTimer;
+    window.onmousemove = resetInactivityTimer;
+    window.onkeydown = resetInactivityTimer;
+    window.onclick = resetInactivityTimer;
+}
+
+function handleTestTypeChange(event) {
+    const type = event.target.value;
+    const testTypeDisplay = document.getElementById('testTypeDisplay');
+    const testTypeNumber = document.getElementById('testTypeNumber');
+    if (type) {
+        const selectedOption = event.target.options[event.target.selectedIndex];
+        testTypeDisplay.innerText = selectedOption.text;
+        testTypeNumber.style.display = 'block';
+    } else {
+        testTypeNumber.style.display = 'none';
+    }
+}
+
+document.getElementById('type').addEventListener('change', handleTestTypeChange);
+
+function updateCameraStream() {
+    fetch('get_camera_image.php').then(response => {
+        if (!response.ok) throw new Error('Błąd podczas pobierania obrazu kamery.');
+        return response.blob();
+    }).then(blob => {
+        const imageUrl = URL.createObjectURL(blob);
+        const cameraStream = document.getElementById('cameraStream');
+        cameraStream.src = imageUrl;
+    }).catch(error => {
+        console.error('Błąd:', error.message);
+    });
+}
+
+setInterval(updateCameraStream, 1000);
+updateCameraStream();
 </script>
+
 </body>
 </html>
